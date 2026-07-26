@@ -120,6 +120,32 @@
 
   steps.push({ type: "final" });
 
+  // -- Precarga de fotos ---------------------------------------------------
+  // Sin esto, cada foto se pide al navegador justo en el instante en que
+  // toca mostrarse. Con conexiones lentas o de alta latencia, eso provoca
+  // que se vea la foto ANTERIOR unos instantes de más (sigue visible
+  // mientras la nueva todavía no ha llegado) o directamente un salto/hueco.
+  // Precargar con antelación evita ambos problemas.
+  var preloadedSrcs = {};
+  function preloadImage(src) {
+    if (!src || preloadedSrcs[src]) return;
+    preloadedSrcs[src] = true;
+    var img = new Image();
+    img.src = src;
+  }
+  function preloadUpcoming(fromIndex, count) {
+    var found = 0;
+    for (var i = fromIndex; i < steps.length && found < count; i++) {
+      if (steps[i].type === "photo") {
+        preloadImage(steps[i].src);
+        found++;
+      }
+    }
+  }
+  // Adelanta la carga de las primeras fotos del álbum antes incluso de que
+  // se pida la contraseña, para que el capítulo 1 arranque ya con margen.
+  preloadUpcoming(0, 3);
+
   // -- Estado -------------------------------------------------------------
   var stepIndex = -1;
   var timerHandle = null;
@@ -167,6 +193,7 @@
       screens["chapter-title"].querySelector('[data-role="chapter-title"]').textContent = step.title;
       activateScreen("chapter-title");
       playChapterTrack(step.chapterIndex);
+      preloadUpcoming(stepIndex + 1, 2);
       scheduleAdvance(2600);
     } else if (step.type === "photo") {
       // Foto: dos capas que se turnan. La que entra usa la clase de
@@ -232,10 +259,12 @@
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
         step.globalPhotoNum + " / " + totalPhotos;
       activateScreen("photo");
+      preloadUpcoming(stepIndex + 1, 2);
       scheduleAdvance(step.isLastPhoto ? lastPhotoDurationMs : photoDurationMs);
     } else if (step.type === "message") {
       screens.message.querySelector('[data-role="message-text"]').textContent = step.text;
       activateScreen("message");
+      preloadUpcoming(stepIndex + 1, 2);
     } else if (step.type === "letter") {
       letterZoomed = false;
       var lFrame = screens.letter.querySelector('[data-role="letter-frame"]');
@@ -247,6 +276,7 @@
       lHint.hidden = false;
       lBtn.hidden = true;
       activateScreen("letter");
+      preloadUpcoming(stepIndex + 1, 2);
     } else if (step.type === "final") {
       activateScreen("final");
     }
@@ -478,11 +508,38 @@
     }
   }
 
+  // -- Mantener la pantalla encendida (Wake Lock API) ----------------------
+  // Soportado en Chrome/Edge/Android desde hace tiempo, y en Safari/iOS
+  // desde la versión 16.4. Donde no exista, simplemente no hace nada — no
+  // rompe el álbum, solo no evita que la pantalla se apague.
+  var wakeLock = null;
+  function requestWakeLock() {
+    if (!("wakeLock" in navigator)) return;
+    navigator.wakeLock
+      .request("screen")
+      .then(function (lock) {
+        wakeLock = lock;
+      })
+      .catch(function () {
+        /* algunos navegadores lo rechazan si la pestaña no está visible;
+           no es grave, simplemente no se mantiene encendida */
+      });
+  }
+  // Si el sistema operativo libera el wake lock (p. ej. al cambiar de app
+  // y volver), se vuelve a pedir automáticamente en cuanto la pestaña
+  // vuelve a estar visible.
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible" && wakeLock === null) {
+      requestWakeLock();
+    }
+  });
+
   document
     .querySelector('[data-action="unlock-audio-and-continue"]')
     .addEventListener("click", function () {
       requestFullscreenSafe();
       unlockAllAudio();
+      requestWakeLock();
       activateScreen("password");
       pauseBtn.hidden = false;
       // pequeño retraso: en algunos navegadores móviles, enfocar el campo

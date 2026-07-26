@@ -166,6 +166,27 @@ html, body {
 
 .password-error.is-visible { opacity: 1; }
 
+/* En móvil, el teclado virtual reduce la altura visible de la pantalla;
+   como el aviso de error va DESPUÉS del botón en el documento, si el
+   teclado está abierto puede quedar oculto debajo de él. Para evitar
+   eso, en pantallas estrechas el aviso se fija arriba del todo, fuera
+   del flujo normal — en escritorio se queda exactamente como estaba. */
+@media (max-width: 640px) {
+  .password-error {
+    position: fixed;
+    top: max(env(safe-area-inset-top, 0px), 0.9rem);
+    left: 1rem;
+    right: 1rem;
+    margin-top: 0;
+    z-index: 20;
+    background: rgba(16, 19, 26, 0.9);
+    border: 1px solid var(--accent-gold-dim);
+    border-radius: 8px;
+    padding: 0.7em 1em;
+    min-height: 0;
+  }
+}
+
 /* -------------------------------------------------------------------------
    Cartela de capítulo (intertítulo estilo cine mudo)
    ------------------------------------------------------------------------- */
