@@ -50,6 +50,12 @@ html, body {
   opacity: 0;
   pointer-events: none;
   transition: opacity 900ms var(--ease-cinema);
+  /* Red de seguridad: si el contenido (p. ej. textos largos en la
+     pantalla final) no cabe en la altura real disponible en el móvil
+     -menor que el viewport nominal por la barra del navegador-, se
+     puede desplazar en vez de quedar recortado e inaccesible. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screen.is-active {
@@ -174,7 +180,10 @@ html, body {
 @media (max-width: 640px) {
   .password-error {
     position: fixed;
-    top: max(env(safe-area-inset-top, 0px), 0.9rem);
+    /* Un poco más abajo que "pegado arriba del todo": ese hueco es
+       justo donde el propio navegador/gestor de contraseñas del móvil
+       suele mostrar su barra de sugerencias, y la tapaba. */
+    top: max(env(safe-area-inset-top, 0px) + 3.4rem, 4rem);
     left: 1rem;
     right: 1rem;
     margin-top: 0;
@@ -457,6 +466,14 @@ html, body {
   border-top: 1px solid #2c313d;
   padding-top: 1.2em;
   max-width: 480px;
+}
+
+@media (max-width: 480px), (max-height: 700px) {
+  .screen-final { padding: 1.2rem; }
+  .final-greeting { margin-bottom: 0.4em; }
+  .final-emotional { margin-bottom: 0.9em; }
+  .final-phrase { margin-bottom: 1em; }
+  .screen-final .btn { margin-top: 1.4rem; }
 }
 
 .final-actions {

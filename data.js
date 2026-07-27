@@ -119,11 +119,11 @@ window.ALBUM_DATA = {
         "messages": [
           {
             "after": 1,
-            "text": "Si miramos hacia atrás, parece que hemos vivido muchísimo."
+            "text": "Si miramos hacia atrás, parece que hemos vivido muchísimo...pero"
           },
           {
             "after": 4,
-            "text": "Pero cuando miro hacia delante.....me doy cuenta de que todavía nos queda casi todo."
+            "text": "cuando miro hacia delante, me doy cuenta de que todavía nos queda casi todo."
           }
         ]
       }
@@ -140,7 +140,7 @@ window.ALBUM_DATA = {
     }
   },
   "manifest": {
-    "generatedAt": "2026-07-26T21:45:34+00:00",
+    "generatedAt": "2026-07-27T05:01:40+00:00",
     "totalPhotos": 110,
     "chapters": [
       {
