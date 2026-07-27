@@ -259,15 +259,22 @@
       // Libera el bloqueo de animación de la capa saliente (para que si
       // vuelve a usarse como entrante más adelante, sí pueda animar), y
       // en modo instantáneo también libera las transiciones silenciadas.
+      // Se espera a DOS pintados de pantalla (no uno) antes de soltar el
+      // bloqueo: con uno solo, en algunos móviles (confirmado en Edge/
+      // Android) el pintado del estado instantáneo podía no haberse
+      // asentado del todo, y la transición se reactivaba demasiado
+      // pronto — viéndose dos fotos superpuestas a medio camino.
       requestAnimationFrame(function () {
-        currentFrame.style.animation = "";
-        currentBg.style.animation = "";
-        if (instant) {
-          currentFrame.style.transition = "";
-          currentBg.style.transition = "";
-          standbyFrame.style.transition = "";
-          standbyBg.style.transition = "";
-        }
+        requestAnimationFrame(function () {
+          currentFrame.style.animation = "";
+          currentBg.style.animation = "";
+          if (instant) {
+            currentFrame.style.transition = "";
+            currentBg.style.transition = "";
+            standbyFrame.style.transition = "";
+            standbyBg.style.transition = "";
+          }
+        });
       });
 
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
