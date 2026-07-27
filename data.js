@@ -140,7 +140,7 @@ window.ALBUM_DATA = {
     }
   },
   "manifest": {
-    "generatedAt": "2026-07-27T05:01:40+00:00",
+    "generatedAt": "2026-07-27T13:24:26+00:00",
     "totalPhotos": 110,
     "chapters": [
       {

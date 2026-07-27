@@ -211,6 +211,16 @@
       var standbyBg = bgLayers[1 - bgTopIndex];
       var currentBg = bgLayers[bgTopIndex];
 
+      // Antes de nada: si la capa que va a pasar a ser "saliente" todavía
+      // tenía en marcha su propia animación de ENTRADA (p. ej. se
+      // interrumpe a mitad de un zoom/paneo de 5-6s con un toque), se
+      // detiene ya mismo. Si no, esa animación podría seguir controlando
+      // su aspecto mientras la nueva capa entra por encima, dejando dos
+      // fotos visibles a la vez a medio resolver.
+      currentFrame.style.animation = "none";
+      currentBg.style.animation = "none";
+      void currentFrame.offsetWidth;
+
       if (instant) {
         // Silencia la transición de opacidad de 900ms en las CUATRO capas
         // (las que salen Y las que entran) — si no, aunque no haya
@@ -246,15 +256,19 @@
       currentBg.classList.remove("is-top");
       bgTopIndex = 1 - bgTopIndex;
 
-      if (instant) {
-        void currentFrame.offsetWidth;
-        requestAnimationFrame(function () {
+      // Libera el bloqueo de animación de la capa saliente (para que si
+      // vuelve a usarse como entrante más adelante, sí pueda animar), y
+      // en modo instantáneo también libera las transiciones silenciadas.
+      requestAnimationFrame(function () {
+        currentFrame.style.animation = "";
+        currentBg.style.animation = "";
+        if (instant) {
           currentFrame.style.transition = "";
           currentBg.style.transition = "";
           standbyFrame.style.transition = "";
           standbyBg.style.transition = "";
-        });
-      }
+        }
+      });
 
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
         step.globalPhotoNum + " / " + totalPhotos;
@@ -559,6 +573,7 @@
     var expected = String(config.password || "");
     if (value.toLowerCase() === expected.toLowerCase() && expected.length > 0) {
       passwordError.classList.remove("is-visible");
+      passwordInput.blur(); // cierra el teclado del móvil
       start();
     } else {
       var options =

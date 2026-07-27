@@ -159,6 +159,30 @@ html, body {
   border-color: var(--accent-gold);
 }
 
+/* Móvil en horizontal: el teclado (a veces flotante, no siempre ocupa
+   todo el ancho) puede tapar la mitad derecha de la pantalla. Se ancla
+   el contenido a la izquierda y se reduce, en vez de centrarlo en todo
+   el ancho, para que quede fuera de esa zona con más probabilidad. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .screen-password {
+    align-items: flex-start;
+    padding: 1rem 1.2rem;
+  }
+  .password-prompt {
+    font-size: 1rem;
+    margin-bottom: 0.8rem;
+    text-align: left;
+  }
+  .screen-password .password-input {
+    width: min(220px, 45vw);
+    padding: 0.5em 0.8em;
+  }
+  .screen-password .btn {
+    margin-top: 1rem;
+    padding: 0.6em 1.4em;
+  }
+}
+
 .password-error {
   font-family: var(--font-display);
   font-style: italic;
@@ -177,7 +201,7 @@ html, body {
    teclado está abierto puede quedar oculto debajo de él. Para evitar
    eso, en pantallas estrechas el aviso se fija arriba del todo, fuera
    del flujo normal — en escritorio se queda exactamente como estaba. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (orientation: landscape) and (max-height: 500px) {
   .password-error {
     position: fixed;
     /* Un poco más abajo que "pegado arriba del todo": ese hueco es
@@ -193,6 +217,14 @@ html, body {
     border-radius: 8px;
     padding: 0.7em 1em;
     min-height: 0;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 500px) {
+  .password-error {
+    left: 1.2rem;
+    right: auto;
+    max-width: 50vw;
   }
 }
 
@@ -519,6 +551,13 @@ html, body {
   opacity: 0;
   animation: entry-rise 1100ms var(--ease-cinema) forwards;
   animation-delay: 250ms;
+}
+
+@media (max-width: 480px), (max-height: 700px) {
+  .screen-final-hint { padding: 1.2rem; }
+  .final-hint-label { margin-bottom: 0.6rem; }
+  .screen-final-hint .final-hint { font-size: clamp(1.15rem, 5vw, 1.7rem); line-height: 1.35; }
+  .screen-final-hint .final-actions { margin-top: 1.2rem; }
 }
 
 /* -------------------------------------------------------------------------
