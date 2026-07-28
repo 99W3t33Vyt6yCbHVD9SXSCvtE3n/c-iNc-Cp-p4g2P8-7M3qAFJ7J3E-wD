@@ -188,17 +188,23 @@
   }
 
   function activateScreen(name) {
+    // Si nos vamos de la pantalla de foto hacia cualquier otra, oculta y
+    // detiene sus capas ANTES de iniciar el fundido entre pantallas — no
+    // en el mismo instante. Si se hace todo a la vez, algunos navegadores
+    // pueden empezar a componer visualmente el fundido (opacidad de
+    // pantalla) antes de haber terminado de aplicar el ocultado interno,
+    // dejando la foto visible unos instantes de más mezclada con lo que
+    // venga después. Forzando un reflow entre un paso y el otro, el
+    // navegador tiene que aplicar el ocultado antes de seguir.
+    if (name !== "photo" && frameLayers && bgLayers) {
+      frameLayers.forEach(haltPhotoLayerAnimation);
+      bgLayers.forEach(haltPhotoLayerAnimation);
+      void screens.photo.offsetWidth;
+    }
     Object.keys(screens).forEach(function (key) {
       screens[key].classList.remove("is-active");
     });
     if (screens[name]) screens[name].classList.add("is-active");
-    // Si nos vamos de la pantalla de foto hacia cualquier otra, no debe
-    // quedar ninguna animación de zoom/paneo corriendo de fondo detrás
-    // de la nueva pantalla mientras se cruzan (fundido de 900ms).
-    if (name !== "photo" && frameLayers && bgLayers) {
-      frameLayers.forEach(haltPhotoLayerAnimation);
-      bgLayers.forEach(haltPhotoLayerAnimation);
-    }
   }
 
   // -- Cambio de foto FORZADO (toque, botón) — reescrito desde cero -------
@@ -630,6 +636,23 @@
   passwordInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") submitPassword();
   });
+
+  // Al rotar el móvil, el redimensionado de la ventana suele cerrar el
+  // teclado (comportamiento del propio sistema, no de esta página). Se
+  // intenta recuperar el foco justo después, mientras siga en la pantalla
+  // de contraseña sin acertarla — en algunos navegadores esto basta para
+  // que el teclado vuelva a aparecer; en otros (sobre todo iOS) puede que
+  // no, porque exigen que el foco parta de un toque directo del usuario.
+  window.addEventListener("resize", function () {
+    if (!screens.password.classList.contains("is-active")) return;
+    clearTimeout(reorientFocusTimer);
+    reorientFocusTimer = setTimeout(function () {
+      if (screens.password.classList.contains("is-active")) {
+        passwordInput.focus();
+      }
+    }, 400); // deja que la rotación termine de asentarse antes de reenfocar
+  });
+  var reorientFocusTimer = null;
 
   // -- Mensajes: solo avanzan con el botón, nunca solos --------------------
   document.querySelector('[data-action="advance-message"]').addEventListener("click", function () {
