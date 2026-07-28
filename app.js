@@ -176,11 +176,31 @@
     }
   }
 
+  function haltPhotoLayerAnimation(el) {
+    // Detiene de forma inmediata y forzada cualquier animación/transform
+    // en marcha sobre una capa de foto o fondo (zoom, paneo...). Fijar
+    // "transform: none" directamente por encima de cualquier animación
+    // es más fiable que solo quitar la clase: en algunos móviles, las
+    // animaciones de transform se ejecutan en un hilo de composición
+    // aparte, que puede tardar un instante en enterarse de que la clase
+    // ya no aplica — mientras tanto, la imagen sigue visiblemente
+    // desplazándose de fondo.
+    el.style.animation = "none";
+    el.style.transform = "none";
+  }
+
   function activateScreen(name) {
     Object.keys(screens).forEach(function (key) {
       screens[key].classList.remove("is-active");
     });
     if (screens[name]) screens[name].classList.add("is-active");
+    // Si nos vamos de la pantalla de foto hacia cualquier otra, no debe
+    // quedar ninguna animación de zoom/paneo corriendo de fondo detrás
+    // de la nueva pantalla mientras se cruzan (fundido de 900ms).
+    if (name !== "photo" && frameLayers && bgLayers) {
+      frameLayers.forEach(haltPhotoLayerAnimation);
+      bgLayers.forEach(haltPhotoLayerAnimation);
+    }
   }
 
   function renderStep(instant) {
@@ -218,7 +238,9 @@
       // su aspecto mientras la nueva capa entra por encima, dejando dos
       // fotos visibles a la vez a medio resolver.
       currentFrame.style.animation = "none";
+      currentFrame.style.transform = "none";
       currentBg.style.animation = "none";
+      currentBg.style.transform = "none";
       void currentFrame.offsetWidth;
 
       if (instant) {
@@ -236,6 +258,11 @@
       standbyImg.src = step.src;
       standbyImg.alt = "";
       standbyFrame.className = "photo-frame";
+      // Por si esta capa quedó bloqueada al abandonar la pantalla de foto
+      // la vez anterior (ver activateScreen): se limpia antes de darle
+      // una animación nueva, si no, el bloqueo heredado la anularía.
+      standbyFrame.style.transform = "";
+      standbyFrame.style.animation = "";
       void standbyFrame.offsetWidth; // reflow para reiniciar la animación
       if (instant) {
         standbyFrame.classList.add("is-top"); // sin clase de transición: aparece ya en su estado final
@@ -247,6 +274,8 @@
 
       standbyBg.style.backgroundImage = 'url("' + step.src + '")';
       standbyBg.className = "photo-bg";
+      standbyBg.style.transform = "";
+      standbyBg.style.animation = "";
       void standbyBg.offsetWidth; // reflow para reiniciar la animación
       if (instant) {
         standbyBg.classList.add("is-top");
@@ -267,7 +296,9 @@
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
           currentFrame.style.animation = "";
+          currentFrame.style.transform = "";
           currentBg.style.animation = "";
+          currentBg.style.transform = "";
           if (instant) {
             currentFrame.style.transition = "";
             currentBg.style.transition = "";
