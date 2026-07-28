@@ -178,15 +178,13 @@
 
   function haltPhotoLayerAnimation(el) {
     // Detiene de forma inmediata y forzada cualquier animación/transform
-    // en marcha sobre una capa de foto o fondo (zoom, paneo...). Fijar
-    // "transform: none" directamente por encima de cualquier animación
-    // es más fiable que solo quitar la clase: en algunos móviles, las
-    // animaciones de transform se ejecutan en un hilo de composición
-    // aparte, que puede tardar un instante en enterarse de que la clase
-    // ya no aplica — mientras tanto, la imagen sigue visiblemente
-    // desplazándose de fondo.
+    // en marcha sobre una capa de foto o fondo (zoom, paneo...), y la
+    // oculta con display:none — igual que en renderPhotoInstant, es la
+    // forma más fiable de garantizar que no siga siendo visible ni
+    // animándose de fondo mientras se muestra otra pantalla encima.
     el.style.animation = "none";
     el.style.transform = "none";
+    el.style.display = "none";
   }
 
   function activateScreen(name) {
@@ -203,6 +201,96 @@
     }
   }
 
+  // -- Cambio de foto FORZADO (toque, botón) — reescrito desde cero -------
+  // Objetivo único: la foto saliente desaparece EN EL MISMO INSTANTE, sin
+  // ningún tipo de transición. Nada de jugar con opacity/transform/
+  // animation y esperar a que el navegador las cancele a tiempo — eso es
+  // exactamente lo que fallaba en la práctica en algunos móviles. Aquí se
+  // usa display:none, que no es animable por CSS bajo ningún concepto: no
+  // hay transición que cancelar porque nunca hay transición posible.
+  function renderPhotoInstant(step) {
+    var standbyFrame = frameLayers[1 - frameTopIndex];
+    var currentFrame = frameLayers[frameTopIndex];
+    var standbyBg = bgLayers[1 - bgTopIndex];
+    var currentBg = bgLayers[bgTopIndex];
+
+    // 1) Oculta la saliente YA — display:none surte efecto de inmediato,
+    //    siempre, sin excepción, y de paso corta en seco cualquier
+    //    animación de zoom/paneo que pudiera tener en marcha.
+    currentFrame.style.display = "none";
+    currentFrame.className = "photo-frame";
+    currentFrame.style.animation = "";
+    currentFrame.style.transform = "";
+
+    currentBg.style.display = "none";
+    currentBg.className = "photo-bg";
+    currentBg.style.animation = "";
+    currentBg.style.transform = "";
+
+    // 2) Oculta TAMBIÉN la entrante ANTES de tocarla — así el cambio de
+    //    contenido y de clase ocurre mientras está fuera del árbol de
+    //    renderizado. Ningún navegador puede animar ni transicionar algo
+    //    que no está siendo pintado, así que al revelarla ya aparece
+    //    directamente en su estado final, sin ambigüedad posible.
+    standbyFrame.style.display = "none";
+    var img = standbyFrame.querySelector("img");
+    img.src = step.src;
+    img.alt = "";
+    standbyFrame.className = "photo-frame is-top";
+    standbyFrame.style.animation = "";
+    standbyFrame.style.transform = "";
+
+    standbyBg.style.display = "none";
+    standbyBg.style.backgroundImage = 'url("' + step.src + '")';
+    standbyBg.className = "photo-bg is-top";
+    standbyBg.style.animation = "";
+    standbyBg.style.transform = "";
+
+    // 3) Revela la entrante — ya en su estado final.
+    void standbyFrame.offsetWidth; // fuerza a aplicar todo lo anterior antes de revelar
+    standbyFrame.style.display = "";
+    standbyBg.style.display = "";
+
+    frameTopIndex = 1 - frameTopIndex;
+    bgTopIndex = 1 - bgTopIndex;
+  }
+
+  // -- Cambio de foto AUTOMÁTICO (temporizador) — con transición ----------
+  // Aquí sí se quiere el efecto: la saliente se desvanece EN PARALELO con
+  // la entrada de la nueva (crossfade real), usando la transición de
+  // opacidad del CSS y la animación de entrada (fade/zoom/pan) del paso.
+  function renderPhotoAnimated(step) {
+    var standbyFrame = frameLayers[1 - frameTopIndex];
+    var currentFrame = frameLayers[frameTopIndex];
+    var standbyBg = bgLayers[1 - bgTopIndex];
+    var currentBg = bgLayers[bgTopIndex];
+
+    // Por si alguna de las dos capas viniera de un cambio FORZADO anterior
+    // con display:none todavía puesto, o con un bloqueo de animación
+    // heredado: se limpia todo antes de animar nada.
+    [standbyFrame, currentFrame, standbyBg, currentBg].forEach(function (el) {
+      el.style.display = "";
+      el.style.animation = "";
+      el.style.transform = "";
+    });
+
+    var img = standbyFrame.querySelector("img");
+    img.src = step.src;
+    img.alt = "";
+    standbyFrame.className = "photo-frame";
+    void standbyFrame.offsetWidth; // reflow para reiniciar la animación
+    standbyFrame.classList.add("is-top", step.transitionClass);
+    currentFrame.classList.remove("is-top");
+    frameTopIndex = 1 - frameTopIndex;
+
+    standbyBg.style.backgroundImage = 'url("' + step.src + '")';
+    standbyBg.className = "photo-bg";
+    void standbyBg.offsetWidth; // reflow para reiniciar la animación
+    standbyBg.classList.add("is-top", step.transitionClass);
+    currentBg.classList.remove("is-top");
+    bgTopIndex = 1 - bgTopIndex;
+  }
+
   function renderStep(instant) {
     clearTimer();
     var step = steps[stepIndex];
@@ -216,98 +304,11 @@
       preloadUpcoming(stepIndex + 1, 2);
       scheduleAdvance(2600);
     } else if (step.type === "photo") {
-      // Foto: dos capas que se turnan. La que entra usa la clase de
-      // transición del paso (fade/zoom/pan); la que sale simplemente
-      // pierde "is-top", y la transición de opacidad del CSS base hace
-      // que se desvanezca EN PARALELO con la entrada de la nueva, en vez
-      // de desaparecer de golpe.
-      //
-      // Si "instant" es true (avance/retroceso forzado por el usuario,
-      // no por el temporizador automático), se desactiva la transición y
-      // la animación por completo durante el cambio, y se restauran justo
-      // después para que la siguiente foto automática sí transicione.
-      var standbyFrame = frameLayers[1 - frameTopIndex];
-      var currentFrame = frameLayers[frameTopIndex];
-      var standbyBg = bgLayers[1 - bgTopIndex];
-      var currentBg = bgLayers[bgTopIndex];
-
-      // Antes de nada: si la capa que va a pasar a ser "saliente" todavía
-      // tenía en marcha su propia animación de ENTRADA (p. ej. se
-      // interrumpe a mitad de un zoom/paneo de 5-6s con un toque), se
-      // detiene ya mismo. Si no, esa animación podría seguir controlando
-      // su aspecto mientras la nueva capa entra por encima, dejando dos
-      // fotos visibles a la vez a medio resolver.
-      currentFrame.style.animation = "none";
-      currentFrame.style.transform = "none";
-      currentBg.style.animation = "none";
-      currentBg.style.transform = "none";
-      void currentFrame.offsetWidth;
-
       if (instant) {
-        // Silencia la transición de opacidad de 900ms en las CUATRO capas
-        // (las que salen Y las que entran) — si no, aunque no haya
-        // animación de zoom/paneo, la propia opacidad seguiría
-        // suavizándose de 0 a 1 durante 900ms en la que entra.
-        currentFrame.style.transition = "none";
-        currentBg.style.transition = "none";
-        standbyFrame.style.transition = "none";
-        standbyBg.style.transition = "none";
-      }
-
-      var standbyImg = standbyFrame.querySelector("img");
-      standbyImg.src = step.src;
-      standbyImg.alt = "";
-      standbyFrame.className = "photo-frame";
-      // Por si esta capa quedó bloqueada al abandonar la pantalla de foto
-      // la vez anterior (ver activateScreen): se limpia antes de darle
-      // una animación nueva, si no, el bloqueo heredado la anularía.
-      standbyFrame.style.transform = "";
-      standbyFrame.style.animation = "";
-      void standbyFrame.offsetWidth; // reflow para reiniciar la animación
-      if (instant) {
-        standbyFrame.classList.add("is-top"); // sin clase de transición: aparece ya en su estado final
+        renderPhotoInstant(step);
       } else {
-        standbyFrame.classList.add("is-top", step.transitionClass);
+        renderPhotoAnimated(step);
       }
-      currentFrame.classList.remove("is-top");
-      frameTopIndex = 1 - frameTopIndex;
-
-      standbyBg.style.backgroundImage = 'url("' + step.src + '")';
-      standbyBg.className = "photo-bg";
-      standbyBg.style.transform = "";
-      standbyBg.style.animation = "";
-      void standbyBg.offsetWidth; // reflow para reiniciar la animación
-      if (instant) {
-        standbyBg.classList.add("is-top");
-      } else {
-        standbyBg.classList.add("is-top", step.transitionClass);
-      }
-      currentBg.classList.remove("is-top");
-      bgTopIndex = 1 - bgTopIndex;
-
-      // Libera el bloqueo de animación de la capa saliente (para que si
-      // vuelve a usarse como entrante más adelante, sí pueda animar), y
-      // en modo instantáneo también libera las transiciones silenciadas.
-      // Se espera a DOS pintados de pantalla (no uno) antes de soltar el
-      // bloqueo: con uno solo, en algunos móviles (confirmado en Edge/
-      // Android) el pintado del estado instantáneo podía no haberse
-      // asentado del todo, y la transición se reactivaba demasiado
-      // pronto — viéndose dos fotos superpuestas a medio camino.
-      requestAnimationFrame(function () {
-        requestAnimationFrame(function () {
-          currentFrame.style.animation = "";
-          currentFrame.style.transform = "";
-          currentBg.style.animation = "";
-          currentBg.style.transform = "";
-          if (instant) {
-            currentFrame.style.transition = "";
-            currentBg.style.transition = "";
-            standbyFrame.style.transition = "";
-            standbyBg.style.transition = "";
-          }
-        });
-      });
-
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
         step.globalPhotoNum + " / " + totalPhotos;
       activateScreen("photo");
