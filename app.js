@@ -176,15 +176,21 @@
     }
   }
 
-  function haltPhotoLayerAnimation(el) {
-    // Detiene de forma inmediata y forzada cualquier animación/transform
-    // en marcha sobre una capa de foto o fondo (zoom, paneo...), y la
-    // oculta con display:none — igual que en renderPhotoInstant, es la
-    // forma más fiable de garantizar que no siga siendo visible ni
-    // animándose de fondo mientras se muestra otra pantalla encima.
+  function settlePhotoLayer(el) {
+    // "Finaliza" la capa YA, de forma completamente síncrona: la deja en
+    // su estado de reposo (visible del todo si es la activa, invisible
+    // si no) sin ninguna animación ni transición pendiente. No la oculta
+    // con display:none — se deja que el fundido normal entre pantallas
+    // (900ms) se encargue de que desaparezca junto con el resto de la
+    // pantalla de foto, con naturalidad. Al no depender de ganarle el
+    // pintado a nada, no hay carrera de tiempos que perder.
+    var target = el.classList.contains("is-top") ? 1 : 0;
+    el.style.transition = "none";
     el.style.animation = "none";
     el.style.transform = "none";
-    el.style.display = "none";
+    el.style.opacity = String(target);
+    void el.offsetWidth; // aplica todo lo anterior ya, antes de seguir
+    el.style.transition = "";
   }
 
   function activateScreen(name) {
@@ -203,23 +209,10 @@
       bgLayers;
 
     if (leavingActivePhoto) {
-      // Oculta y detiene las capas de foto ANTES de iniciar el fundido
-      // entre pantallas. Un simple reflow (offsetWidth) solo garantiza
-      // que el navegador RECALCULE el estilo — no que lo haya PINTADO ya.
-      // Para eso hace falta esperar a un pintado real, con doble
-      // requestAnimationFrame (el mismo mecanismo que ya funcionó para
-      // el modo forzado). Sin esto, el fundido entre pantallas podía
-      // empezar a componerse visualmente antes de que el ocultado
-      // hubiera llegado a pintarse, dejando la foto anterior visible
-      // mezclada con lo siguiente.
-      frameLayers.forEach(haltPhotoLayerAnimation);
-      bgLayers.forEach(haltPhotoLayerAnimation);
-      requestAnimationFrame(function () {
-        requestAnimationFrame(swapNow);
-      });
-    } else {
-      swapNow();
+      frameLayers.forEach(settlePhotoLayer);
+      bgLayers.forEach(settlePhotoLayer);
     }
+    swapNow();
   }
 
   // -- Cambio de foto FORZADO (toque, botón) — reescrito desde cero -------
