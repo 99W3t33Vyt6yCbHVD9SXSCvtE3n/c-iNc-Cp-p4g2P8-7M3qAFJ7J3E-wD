@@ -188,23 +188,38 @@
   }
 
   function activateScreen(name) {
-    // Si nos vamos de la pantalla de foto hacia cualquier otra, oculta y
-    // detiene sus capas ANTES de iniciar el fundido entre pantallas — no
-    // en el mismo instante. Si se hace todo a la vez, algunos navegadores
-    // pueden empezar a componer visualmente el fundido (opacidad de
-    // pantalla) antes de haber terminado de aplicar el ocultado interno,
-    // dejando la foto visible unos instantes de más mezclada con lo que
-    // venga después. Forzando un reflow entre un paso y el otro, el
-    // navegador tiene que aplicar el ocultado antes de seguir.
-    if (name !== "photo" && frameLayers && bgLayers) {
+    function swapNow() {
+      Object.keys(screens).forEach(function (key) {
+        screens[key].classList.remove("is-active");
+      });
+      if (screens[name]) screens[name].classList.add("is-active");
+    }
+
+    var leavingActivePhoto =
+      name !== "photo" &&
+      screens.photo &&
+      screens.photo.classList.contains("is-active") &&
+      frameLayers &&
+      bgLayers;
+
+    if (leavingActivePhoto) {
+      // Oculta y detiene las capas de foto ANTES de iniciar el fundido
+      // entre pantallas. Un simple reflow (offsetWidth) solo garantiza
+      // que el navegador RECALCULE el estilo — no que lo haya PINTADO ya.
+      // Para eso hace falta esperar a un pintado real, con doble
+      // requestAnimationFrame (el mismo mecanismo que ya funcionó para
+      // el modo forzado). Sin esto, el fundido entre pantallas podía
+      // empezar a componerse visualmente antes de que el ocultado
+      // hubiera llegado a pintarse, dejando la foto anterior visible
+      // mezclada con lo siguiente.
       frameLayers.forEach(haltPhotoLayerAnimation);
       bgLayers.forEach(haltPhotoLayerAnimation);
-      void screens.photo.offsetWidth;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(swapNow);
+      });
+    } else {
+      swapNow();
     }
-    Object.keys(screens).forEach(function (key) {
-      screens[key].classList.remove("is-active");
-    });
-    if (screens[name]) screens[name].classList.add("is-active");
   }
 
   // -- Cambio de foto FORZADO (toque, botón) — reescrito desde cero -------
