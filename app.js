@@ -157,9 +157,11 @@
     screens[el.dataset.screen] = el;
   });
 
-  var bgEl = screens.photo.querySelector('[data-role="photo-bg"]');
-  var bgTimer = null;
-  var BG_DELAY_MS = 450; // cuánto tarda el fondo en seguir a la foto principal
+  var bgLayers = [
+    screens.photo.querySelector('[data-role="photo-bg-0"]'),
+    screens.photo.querySelector('[data-role="photo-bg-1"]')
+  ];
+  var bgTopIndex = 0;
 
   var frameLayers = [
     screens.photo.querySelector('[data-role="photo-frame-0"]'),
@@ -174,114 +176,11 @@
     }
   }
 
-  // -- Fondo desenfocado: una sola capa, con retraso respecto a la foto --
-  function setBackgroundImage(src, instant) {
-    clearTimeout(bgTimer);
-    if (instant) {
-      // Forzado: la misma foto principal, ya, sin fundido.
-      bgEl.style.transition = "none";
-      bgEl.style.backgroundImage = 'url("' + src + '")';
-      bgEl.style.opacity = "1";
-      void bgEl.offsetWidth;
-      bgEl.style.transition = "";
-    } else {
-      // Automático: espera un poco (retraso respecto a la foto), luego
-      // hace un parpadeo suave de opacidad al cambiar la imagen.
-      bgTimer = setTimeout(function () {
-        bgEl.style.opacity = "0";
-        setTimeout(function () {
-          bgEl.style.backgroundImage = 'url("' + src + '")';
-          bgEl.style.opacity = "1";
-        }, 220);
-      }, BG_DELAY_MS);
-    }
-  }
-
-  // -- Reinicio total de las capas de foto ---------------------------------
-  // Se llama SIEMPRE que se entra en una pantalla que no es "photo" viniendo
-  // de la pantalla de foto activa: cartela de capítulo, mensaje, carta o
-  // final. Borra todo (imagen, animación, visibilidad) de un plumazo, de
-  // forma síncrona — no hay fundido que gestionar ni tiempo que perder
-  // intentando sincronizar con el cambio de pantalla: simplemente ya no
-  // hay nada de la foto anterior cuando aparece lo siguiente.
-  function resetPhotoLayers() {
-    frameLayers.forEach(function (el) {
-      el.style.transition = "none";
-      el.style.animation = "none";
-      el.style.transform = "none";
-      el.className = "photo-frame";
-      el.style.opacity = "0";
-      var img = el.querySelector("img");
-      img.removeAttribute("src");
-      void el.offsetWidth;
-      el.style.transition = "";
-    });
-    clearTimeout(bgTimer);
-    bgEl.style.transition = "none";
-    bgEl.style.opacity = "0";
-    void bgEl.offsetWidth;
-    bgEl.style.transition = "";
-  }
-
   function activateScreen(name) {
-    var leavingActivePhoto =
-      name !== "photo" && screens.photo && screens.photo.classList.contains("is-active");
-    if (leavingActivePhoto) {
-      resetPhotoLayers();
-    }
     Object.keys(screens).forEach(function (key) {
       screens[key].classList.remove("is-active");
     });
     if (screens[name]) screens[name].classList.add("is-active");
-  }
-
-  // -- Foto: una única función para ambos modos ----------------------------
-  // instant=true  (avance/retroceso forzado, botones de texto): SIN
-  //   transición ni en la foto principal ni en el fondo. La saliente
-  //   desaparece ya; la entrante aparece ya, ya con su propio desenfoque
-  //   de fondo (la misma foto), y a partir de ahí todo sigue con
-  //   normalidad (la siguiente automática vuelve a tener su fundido).
-  // instant=false (temporizador automático): fundido cruzado con la
-  //   transición aleatoria del paso, y el fondo cambia con retraso.
-  function renderPhoto(step, instant) {
-    var incoming = frameLayers[1 - frameTopIndex];
-    var outgoing = frameLayers[frameTopIndex];
-
-    if (instant) {
-      // Saliente: fuera ya, sin transición.
-      outgoing.style.transition = "none";
-      outgoing.style.animation = "none";
-      outgoing.className = "photo-frame";
-      outgoing.style.opacity = "0";
-
-      // Entrante: contenido nuevo, visible ya, sin transición ni animación.
-      var img1 = incoming.querySelector("img");
-      img1.src = step.src;
-      img1.alt = "";
-      incoming.style.transition = "none";
-      incoming.style.animation = "none";
-      incoming.style.transform = "none";
-      incoming.className = "photo-frame is-top";
-      incoming.style.opacity = "1";
-
-      void incoming.offsetWidth; // aplica todo lo anterior antes de soltar el bloqueo
-      incoming.style.transition = "";
-      outgoing.style.transition = "";
-
-      setBackgroundImage(step.src, true);
-    } else {
-      var img2 = incoming.querySelector("img");
-      img2.src = step.src;
-      img2.alt = "";
-      incoming.className = "photo-frame";
-      void incoming.offsetWidth; // reflow para reiniciar la animación
-      incoming.classList.add("is-top", step.transitionClass);
-      outgoing.classList.remove("is-top");
-
-      setBackgroundImage(step.src, false);
-    }
-
-    frameTopIndex = 1 - frameTopIndex;
   }
 
   function renderStep(instant) {
@@ -297,7 +196,66 @@
       preloadUpcoming(stepIndex + 1, 2);
       scheduleAdvance(2600);
     } else if (step.type === "photo") {
-      renderPhoto(step, !!instant);
+      // Foto: dos capas que se turnan. La que entra usa la clase de
+      // transición del paso (fade/zoom/pan); la que sale simplemente
+      // pierde "is-top", y la transición de opacidad del CSS base hace
+      // que se desvanezca EN PARALELO con la entrada de la nueva, en vez
+      // de desaparecer de golpe.
+      //
+      // Si "instant" es true (avance/retroceso forzado por el usuario,
+      // no por el temporizador automático), se desactiva la transición y
+      // la animación por completo durante el cambio, y se restauran justo
+      // después para que la siguiente foto automática sí transicione.
+      var standbyFrame = frameLayers[1 - frameTopIndex];
+      var currentFrame = frameLayers[frameTopIndex];
+      var standbyBg = bgLayers[1 - bgTopIndex];
+      var currentBg = bgLayers[bgTopIndex];
+
+      if (instant) {
+        // Silencia la transición de opacidad de 900ms en las CUATRO capas
+        // (las que salen Y las que entran) — si no, aunque no haya
+        // animación de zoom/paneo, la propia opacidad seguiría
+        // suavizándose de 0 a 1 durante 900ms en la que entra.
+        currentFrame.style.transition = "none";
+        currentBg.style.transition = "none";
+        standbyFrame.style.transition = "none";
+        standbyBg.style.transition = "none";
+      }
+
+      var standbyImg = standbyFrame.querySelector("img");
+      standbyImg.src = step.src;
+      standbyImg.alt = "";
+      standbyFrame.className = "photo-frame";
+      void standbyFrame.offsetWidth; // reflow para reiniciar la animación
+      if (instant) {
+        standbyFrame.classList.add("is-top"); // sin clase de transición: aparece ya en su estado final
+      } else {
+        standbyFrame.classList.add("is-top", step.transitionClass);
+      }
+      currentFrame.classList.remove("is-top");
+      frameTopIndex = 1 - frameTopIndex;
+
+      standbyBg.style.backgroundImage = 'url("' + step.src + '")';
+      standbyBg.className = "photo-bg";
+      void standbyBg.offsetWidth; // reflow para reiniciar la animación
+      if (instant) {
+        standbyBg.classList.add("is-top");
+      } else {
+        standbyBg.classList.add("is-top", step.transitionClass);
+      }
+      currentBg.classList.remove("is-top");
+      bgTopIndex = 1 - bgTopIndex;
+
+      if (instant) {
+        void currentFrame.offsetWidth;
+        requestAnimationFrame(function () {
+          currentFrame.style.transition = "";
+          currentBg.style.transition = "";
+          standbyFrame.style.transition = "";
+          standbyBg.style.transition = "";
+        });
+      }
+
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
         step.globalPhotoNum + " / " + totalPhotos;
       activateScreen("photo");
@@ -601,7 +559,9 @@
     var expected = String(config.password || "");
     if (value.toLowerCase() === expected.toLowerCase() && expected.length > 0) {
       passwordError.classList.remove("is-visible");
-      passwordInput.blur(); // cierra el teclado del móvil
+      // En móvil, cerrar el teclado virtual al acertar: quitar el foco
+      // es lo único que lo oculta de forma fiable.
+      passwordInput.blur();
       start();
     } else {
       var options =
@@ -619,23 +579,6 @@
   passwordInput.addEventListener("keydown", function (e) {
     if (e.key === "Enter") submitPassword();
   });
-
-  // Al rotar el móvil, el redimensionado de la ventana suele cerrar el
-  // teclado (comportamiento del propio sistema, no de esta página). Se
-  // intenta recuperar el foco justo después, mientras siga en la pantalla
-  // de contraseña sin acertarla — en algunos navegadores esto basta para
-  // que el teclado vuelva a aparecer; en otros (sobre todo iOS) puede que
-  // no, porque exigen que el foco parta de un toque directo del usuario.
-  window.addEventListener("resize", function () {
-    if (!screens.password.classList.contains("is-active")) return;
-    clearTimeout(reorientFocusTimer);
-    reorientFocusTimer = setTimeout(function () {
-      if (screens.password.classList.contains("is-active")) {
-        passwordInput.focus();
-      }
-    }, 400); // deja que la rotación termine de asentarse antes de reenfocar
-  });
-  var reorientFocusTimer = null;
 
   // -- Mensajes: solo avanzan con el botón, nunca solos --------------------
   document.querySelector('[data-action="advance-message"]').addEventListener("click", function () {

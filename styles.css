@@ -159,30 +159,6 @@ html, body {
   border-color: var(--accent-gold);
 }
 
-/* Móvil en horizontal: el teclado (a veces flotante, no siempre ocupa
-   todo el ancho) puede tapar la mitad derecha de la pantalla. Se ancla
-   el contenido a la izquierda y se reduce, en vez de centrarlo en todo
-   el ancho, para que quede fuera de esa zona con más probabilidad. */
-@media (orientation: landscape) and (max-height: 500px) {
-  .screen-password {
-    align-items: flex-start;
-    padding: 1rem 1.2rem;
-  }
-  .password-prompt {
-    font-size: 1rem;
-    margin-bottom: 0.8rem;
-    text-align: left;
-  }
-  .screen-password .password-input {
-    width: min(220px, 45vw);
-    padding: 0.5em 0.8em;
-  }
-  .screen-password .btn {
-    margin-top: 1rem;
-    padding: 0.6em 1.4em;
-  }
-}
-
 .password-error {
   font-family: var(--font-display);
   font-style: italic;
@@ -201,7 +177,7 @@ html, body {
    teclado está abierto puede quedar oculto debajo de él. Para evitar
    eso, en pantallas estrechas el aviso se fija arriba del todo, fuera
    del flujo normal — en escritorio se queda exactamente como estaba. */
-@media (max-width: 640px), (orientation: landscape) and (max-height: 500px) {
+@media (max-width: 640px) {
   .password-error {
     position: fixed;
     /* Un poco más abajo que "pegado arriba del todo": ese hueco es
@@ -217,14 +193,6 @@ html, body {
     border-radius: 8px;
     padding: 0.7em 1em;
     min-height: 0;
-  }
-}
-
-@media (orientation: landscape) and (max-height: 500px) {
-  .password-error {
-    left: 1.2rem;
-    right: auto;
-    max-width: 50vw;
   }
 }
 
@@ -288,12 +256,20 @@ html, body {
   background-position: center;
   filter: blur(18px) brightness(0.85);
   z-index: 0;
-  opacity: 1;
-  /* Pequeño fundido propio: cuando app.js cambia la imagen de fondo (con
-     retraso respecto a la foto principal), la baja a 0, cambia la
-     imagen, y la sube de nuevo — un parpadeo suave, no un corte seco. */
-  transition: opacity 220ms ease;
 }
+
+.photo-bg.is-top {
+  z-index: 1;
+}
+
+/* Reutiliza las mismas clases de transición que la foto principal
+   (t-fade, t-zoom-in...), para que el fondo cambie EN SINCRONÍA con la
+   foto en primer plano, en vez de aparecer de golpe antes de tiempo. */
+.photo-bg.is-top.t-fade      { animation: t-fade 1200ms var(--ease-cinema); }
+.photo-bg.is-top.t-zoom-in   { animation: t-zoom-in 5000ms var(--ease-cinema); }
+.photo-bg.is-top.t-zoom-soft { animation: t-zoom-soft 6000ms linear; }
+.photo-bg.is-top.t-pan-h     { animation: t-pan-h 5000ms var(--ease-cinema); }
+.photo-bg.is-top.t-pan-v     { animation: t-pan-v 5000ms var(--ease-cinema); }
 
 .photo-bg-overlay {
   position: absolute;
@@ -313,8 +289,7 @@ html, body {
   opacity: 0;
   /* Al quitar "is-top" (cuando entra la siguiente foto), esta transición
      de opacidad es lo que hace que la foto saliente se desvanezca en vez
-     de desaparecer de golpe — se superpone con la entrada de la nueva.
-     En cambios FORZADOS, app.js la desactiva momentáneamente. */
+     de desaparecer de golpe — se superpone con la entrada de la nueva. */
   transition: opacity 900ms var(--ease-cinema);
 }
 
@@ -333,8 +308,7 @@ html, body {
   display: block;
 }
 
-/* Variantes de transición de foto — SOLO se usan en cambios automáticos;
-   en los forzados app.js nunca añade estas clases. */
+/* Variantes de transición de foto (aplicadas por app.js en la Parte 3) */
 .photo-frame.t-fade      { animation: t-fade 1200ms var(--ease-cinema); }
 .photo-frame.t-zoom-in   { animation: t-zoom-in 5000ms var(--ease-cinema); }
 .photo-frame.t-zoom-soft { animation: t-zoom-soft 6000ms linear; }
@@ -415,6 +389,7 @@ html, body {
   object-fit: contain;
   display: block;
   box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  transition: opacity 700ms ease;
 }
 
 .letter-hint[hidden] {
@@ -499,6 +474,30 @@ html, body {
   .final-emotional { margin-bottom: 0.9em; }
   .final-phrase { margin-bottom: 1em; }
   .screen-final .btn { margin-top: 1.4rem; }
+
+  .screen-final-hint { padding: 1.2rem; }
+  .final-hint-label { margin-bottom: 0.6rem; }
+  .screen-final-hint .final-hint {
+    font-size: clamp(1.1rem, 4.2vw, 1.7rem);
+    line-height: 1.35;
+  }
+  .final-actions { margin-top: 1.4rem; gap: 0.7rem; }
+  .screen-final-hint .btn { padding: 0.75em 1.6em; margin-top: 0; }
+}
+
+/* Pantallas todavía más bajas (móvil con barra de navegador visible,
+   o teclado/orientación desfavorable): un último recorte para que la
+   pista y los dos botones quepan sin desplazarse. El scroll sigue
+   disponible por si algún contenido no cupiera igualmente. */
+@media (max-height: 560px) {
+  .screen-final-hint { padding: 1rem 1.2rem; }
+  .final-hint-label { margin-bottom: 0.4rem; font-size: 0.7rem; }
+  .screen-final-hint .final-hint {
+    font-size: clamp(1rem, 3.6vh, 1.4rem);
+    line-height: 1.3;
+  }
+  .final-actions { margin-top: 1rem; gap: 0.5rem; }
+  .screen-final-hint .btn { padding: 0.65em 1.3em; font-size: 0.78rem; }
 }
 
 .final-actions {
@@ -544,13 +543,6 @@ html, body {
   opacity: 0;
   animation: entry-rise 1100ms var(--ease-cinema) forwards;
   animation-delay: 250ms;
-}
-
-@media (max-width: 480px), (max-height: 700px) {
-  .screen-final-hint { padding: 1.2rem; }
-  .final-hint-label { margin-bottom: 0.6rem; }
-  .screen-final-hint .final-hint { font-size: clamp(1.15rem, 5vw, 1.7rem); line-height: 1.35; }
-  .screen-final-hint .final-actions { margin-top: 1.2rem; }
 }
 
 /* -------------------------------------------------------------------------
@@ -613,4 +605,51 @@ html, body {
 @media (orientation: landscape) and (max-height: 480px) {
   .photo-frame img { max-height: 74vh; }
   .final-actions { margin-top: 1.2rem; }
+}
+
+/* En móviles en horizontal, el teclado virtual ocupa buena parte de la
+   altura visible; el contenido centrado verticalmente puede quedar a
+   medias detrás de él. Se ancla arriba y a la izquierda -zona que el
+   teclado no tapa- y se compacta para que quepa entero sin necesidad
+   de desplazarse. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .screen-password {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    text-align: left;
+    padding: max(env(safe-area-inset-top, 0px), 1.2rem) 1.5rem 1rem
+             max(env(safe-area-inset-left, 0px) + 1.5rem, 1.5rem);
+  }
+
+  .password-prompt {
+    font-size: clamp(0.85rem, 2.4vh, 1.05rem);
+    margin-bottom: 0.9rem;
+  }
+
+  .password-input {
+    width: min(220px, 55vw);
+    padding: 0.6em 0.8em;
+  }
+
+  .screen-password .btn {
+    margin-top: 0.9rem;
+    padding: 0.7em 1.6em;
+  }
+
+  .password-error {
+    position: fixed;
+    left: max(env(safe-area-inset-left, 0px) + 1.5rem, 1.5rem);
+    right: 1.5rem;
+    top: max(env(safe-area-inset-top, 0px) + 0.6rem, 0.6rem);
+    margin-top: 0;
+    text-align: left;
+    min-height: 0;
+    z-index: 20;
+    background: rgba(16, 19, 26, 0.9);
+    border: 1px solid var(--accent-gold-dim);
+    border-radius: 8px;
+    padding: 0.6em 0.9em;
+    font-size: 0.85rem;
+  }
 }
