@@ -159,6 +159,30 @@ html, body {
   border-color: var(--accent-gold);
 }
 
+/* Móvil en horizontal: el teclado (a veces flotante, no siempre ocupa
+   todo el ancho) puede tapar la mitad derecha de la pantalla. Se ancla
+   el contenido a la izquierda y se reduce, en vez de centrarlo en todo
+   el ancho, para que quede fuera de esa zona con más probabilidad. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .screen-password {
+    align-items: flex-start;
+    padding: 1rem 1.2rem;
+  }
+  .password-prompt {
+    font-size: 1rem;
+    margin-bottom: 0.8rem;
+    text-align: left;
+  }
+  .screen-password .password-input {
+    width: min(220px, 45vw);
+    padding: 0.5em 0.8em;
+  }
+  .screen-password .btn {
+    margin-top: 1rem;
+    padding: 0.6em 1.4em;
+  }
+}
+
 .password-error {
   font-family: var(--font-display);
   font-style: italic;
@@ -172,45 +196,12 @@ html, body {
 
 .password-error.is-visible { opacity: 1; }
 
-/* En horizontal, muchos móviles muestran el teclado como un panel
-   flotante/partido pegado al lado DERECHO de la pantalla (no ocupa todo
-   el ancho como en vertical). Si el contenido está centrado, el teclado
-   tapa parte de él. Solución: en horizontal con poca altura, todo el
-   bloque (frase, input, botón) se ancla a la mitad izquierda de la
-   pantalla, dejando el lado derecho libre para el teclado. El aviso de
-   error usa la misma idea más abajo (fijo, anclado a la izquierda). */
-@media (orientation: landscape) and (max-height: 500px) {
-  .screen-password {
-    flex-direction: column;
-    align-items: flex-start;
-    justify-content: center;
-    text-align: left;
-    padding: 1rem 1.5rem;
-    max-width: 55%;
-  }
-
-  .password-prompt {
-    text-align: left;
-    margin-bottom: 1rem;
-  }
-
-  .password-input {
-    align-self: flex-start;
-    width: min(240px, 100%);
-  }
-
-  .screen-password .btn {
-    align-self: flex-start;
-    margin-top: 1rem;
-  }
-}
-
 /* En móvil, el teclado virtual reduce la altura visible de la pantalla;
    como el aviso de error va DESPUÉS del botón en el documento, si el
    teclado está abierto puede quedar oculto debajo de él. Para evitar
    eso, en pantallas estrechas el aviso se fija arriba del todo, fuera
    del flujo normal — en escritorio se queda exactamente como estaba. */
-@media (max-width: 640px) {
+@media (max-width: 640px), (orientation: landscape) and (max-height: 500px) {
   .password-error {
     position: fixed;
     /* Un poco más abajo que "pegado arriba del todo": ese hueco es
@@ -229,24 +220,11 @@ html, body {
   }
 }
 
-/* Misma idea en horizontal, pero anclado a la izquierda (no a todo el
-   ancho): el teclado flotante ocupa el lado derecho, así que el aviso
-   no debe extenderse hasta ahí o quedaría tapado. */
 @media (orientation: landscape) and (max-height: 500px) {
   .password-error {
-    position: fixed;
-    top: max(env(safe-area-inset-top, 0px) + 0.8rem, 1rem);
-    left: 1rem;
+    left: 1.2rem;
     right: auto;
-    width: min(55%, 340px);
-    text-align: left;
-    margin-top: 0;
-    z-index: 20;
-    background: rgba(16, 19, 26, 0.9);
-    border: 1px solid var(--accent-gold-dim);
-    border-radius: 8px;
-    padding: 0.7em 1em;
-    min-height: 0;
+    max-width: 50vw;
   }
 }
 
