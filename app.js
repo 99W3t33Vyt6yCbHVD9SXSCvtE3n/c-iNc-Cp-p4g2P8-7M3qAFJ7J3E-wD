@@ -157,11 +157,9 @@
     screens[el.dataset.screen] = el;
   });
 
-  var bgLayers = [
-    screens.photo.querySelector('[data-role="photo-bg-0"]'),
-    screens.photo.querySelector('[data-role="photo-bg-1"]')
-  ];
-  var bgTopIndex = 0;
+  var bgEl = screens.photo.querySelector('[data-role="photo-bg"]');
+  var bgTimer = null;
+  var BG_DELAY_MS = 450; // cuánto tarda el fondo en seguir a la foto principal
 
   var frameLayers = [
     screens.photo.querySelector('[data-role="photo-frame-0"]'),
@@ -176,133 +174,114 @@
     }
   }
 
-  function settlePhotoLayer(el) {
-    // "Finaliza" la capa YA, de forma completamente síncrona: la deja en
-    // su estado de reposo (visible del todo si es la activa, invisible
-    // si no) sin ninguna animación ni transición pendiente. No la oculta
-    // con display:none — se deja que el fundido normal entre pantallas
-    // (900ms) se encargue de que desaparezca junto con el resto de la
-    // pantalla de foto, con naturalidad. Al no depender de ganarle el
-    // pintado a nada, no hay carrera de tiempos que perder.
-    var target = el.classList.contains("is-top") ? 1 : 0;
-    el.style.transition = "none";
-    el.style.animation = "none";
-    el.style.transform = "none";
-    el.style.opacity = String(target);
-    void el.offsetWidth; // aplica todo lo anterior ya, antes de seguir
-    el.style.transition = "";
+  // -- Fondo desenfocado: una sola capa, con retraso respecto a la foto --
+  function setBackgroundImage(src, instant) {
+    clearTimeout(bgTimer);
+    if (instant) {
+      // Forzado: la misma foto principal, ya, sin fundido.
+      bgEl.style.transition = "none";
+      bgEl.style.backgroundImage = 'url("' + src + '")';
+      bgEl.style.opacity = "1";
+      void bgEl.offsetWidth;
+      bgEl.style.transition = "";
+    } else {
+      // Automático: espera un poco (retraso respecto a la foto), luego
+      // hace un parpadeo suave de opacidad al cambiar la imagen.
+      bgTimer = setTimeout(function () {
+        bgEl.style.opacity = "0";
+        setTimeout(function () {
+          bgEl.style.backgroundImage = 'url("' + src + '")';
+          bgEl.style.opacity = "1";
+        }, 220);
+      }, BG_DELAY_MS);
+    }
+  }
+
+  // -- Reinicio total de las capas de foto ---------------------------------
+  // Se llama SIEMPRE que se entra en una pantalla que no es "photo" viniendo
+  // de la pantalla de foto activa: cartela de capítulo, mensaje, carta o
+  // final. Borra todo (imagen, animación, visibilidad) de un plumazo, de
+  // forma síncrona — no hay fundido que gestionar ni tiempo que perder
+  // intentando sincronizar con el cambio de pantalla: simplemente ya no
+  // hay nada de la foto anterior cuando aparece lo siguiente.
+  function resetPhotoLayers() {
+    frameLayers.forEach(function (el) {
+      el.style.transition = "none";
+      el.style.animation = "none";
+      el.style.transform = "none";
+      el.className = "photo-frame";
+      el.style.opacity = "0";
+      var img = el.querySelector("img");
+      img.removeAttribute("src");
+      void el.offsetWidth;
+      el.style.transition = "";
+    });
+    clearTimeout(bgTimer);
+    bgEl.style.transition = "none";
+    bgEl.style.opacity = "0";
+    void bgEl.offsetWidth;
+    bgEl.style.transition = "";
   }
 
   function activateScreen(name) {
-    function swapNow() {
-      Object.keys(screens).forEach(function (key) {
-        screens[key].classList.remove("is-active");
-      });
-      if (screens[name]) screens[name].classList.add("is-active");
-    }
-
     var leavingActivePhoto =
-      name !== "photo" &&
-      screens.photo &&
-      screens.photo.classList.contains("is-active") &&
-      frameLayers &&
-      bgLayers;
-
+      name !== "photo" && screens.photo && screens.photo.classList.contains("is-active");
     if (leavingActivePhoto) {
-      frameLayers.forEach(settlePhotoLayer);
-      bgLayers.forEach(settlePhotoLayer);
+      resetPhotoLayers();
     }
-    swapNow();
-  }
-
-  // -- Cambio de foto FORZADO (toque, botón) — reescrito desde cero -------
-  // Objetivo único: la foto saliente desaparece EN EL MISMO INSTANTE, sin
-  // ningún tipo de transición. Nada de jugar con opacity/transform/
-  // animation y esperar a que el navegador las cancele a tiempo — eso es
-  // exactamente lo que fallaba en la práctica en algunos móviles. Aquí se
-  // usa display:none, que no es animable por CSS bajo ningún concepto: no
-  // hay transición que cancelar porque nunca hay transición posible.
-  function renderPhotoInstant(step) {
-    var standbyFrame = frameLayers[1 - frameTopIndex];
-    var currentFrame = frameLayers[frameTopIndex];
-    var standbyBg = bgLayers[1 - bgTopIndex];
-    var currentBg = bgLayers[bgTopIndex];
-
-    // 1) Oculta la saliente YA — display:none surte efecto de inmediato,
-    //    siempre, sin excepción, y de paso corta en seco cualquier
-    //    animación de zoom/paneo que pudiera tener en marcha.
-    currentFrame.style.display = "none";
-    currentFrame.className = "photo-frame";
-    currentFrame.style.animation = "";
-    currentFrame.style.transform = "";
-
-    currentBg.style.display = "none";
-    currentBg.className = "photo-bg";
-    currentBg.style.animation = "";
-    currentBg.style.transform = "";
-
-    // 2) Oculta TAMBIÉN la entrante ANTES de tocarla — así el cambio de
-    //    contenido y de clase ocurre mientras está fuera del árbol de
-    //    renderizado. Ningún navegador puede animar ni transicionar algo
-    //    que no está siendo pintado, así que al revelarla ya aparece
-    //    directamente en su estado final, sin ambigüedad posible.
-    standbyFrame.style.display = "none";
-    var img = standbyFrame.querySelector("img");
-    img.src = step.src;
-    img.alt = "";
-    standbyFrame.className = "photo-frame is-top";
-    standbyFrame.style.animation = "";
-    standbyFrame.style.transform = "";
-
-    standbyBg.style.display = "none";
-    standbyBg.style.backgroundImage = 'url("' + step.src + '")';
-    standbyBg.className = "photo-bg is-top";
-    standbyBg.style.animation = "";
-    standbyBg.style.transform = "";
-
-    // 3) Revela la entrante — ya en su estado final.
-    void standbyFrame.offsetWidth; // fuerza a aplicar todo lo anterior antes de revelar
-    standbyFrame.style.display = "";
-    standbyBg.style.display = "";
-
-    frameTopIndex = 1 - frameTopIndex;
-    bgTopIndex = 1 - bgTopIndex;
-  }
-
-  // -- Cambio de foto AUTOMÁTICO (temporizador) — con transición ----------
-  // Aquí sí se quiere el efecto: la saliente se desvanece EN PARALELO con
-  // la entrada de la nueva (crossfade real), usando la transición de
-  // opacidad del CSS y la animación de entrada (fade/zoom/pan) del paso.
-  function renderPhotoAnimated(step) {
-    var standbyFrame = frameLayers[1 - frameTopIndex];
-    var currentFrame = frameLayers[frameTopIndex];
-    var standbyBg = bgLayers[1 - bgTopIndex];
-    var currentBg = bgLayers[bgTopIndex];
-
-    // Por si alguna de las dos capas viniera de un cambio FORZADO anterior
-    // con display:none todavía puesto, o con un bloqueo de animación
-    // heredado: se limpia todo antes de animar nada.
-    [standbyFrame, currentFrame, standbyBg, currentBg].forEach(function (el) {
-      el.style.display = "";
-      el.style.animation = "";
-      el.style.transform = "";
+    Object.keys(screens).forEach(function (key) {
+      screens[key].classList.remove("is-active");
     });
+    if (screens[name]) screens[name].classList.add("is-active");
+  }
 
-    var img = standbyFrame.querySelector("img");
-    img.src = step.src;
-    img.alt = "";
-    standbyFrame.className = "photo-frame";
-    void standbyFrame.offsetWidth; // reflow para reiniciar la animación
-    standbyFrame.classList.add("is-top", step.transitionClass);
-    currentFrame.classList.remove("is-top");
+  // -- Foto: una única función para ambos modos ----------------------------
+  // instant=true  (avance/retroceso forzado, botones de texto): SIN
+  //   transición ni en la foto principal ni en el fondo. La saliente
+  //   desaparece ya; la entrante aparece ya, ya con su propio desenfoque
+  //   de fondo (la misma foto), y a partir de ahí todo sigue con
+  //   normalidad (la siguiente automática vuelve a tener su fundido).
+  // instant=false (temporizador automático): fundido cruzado con la
+  //   transición aleatoria del paso, y el fondo cambia con retraso.
+  function renderPhoto(step, instant) {
+    var incoming = frameLayers[1 - frameTopIndex];
+    var outgoing = frameLayers[frameTopIndex];
+
+    if (instant) {
+      // Saliente: fuera ya, sin transición.
+      outgoing.style.transition = "none";
+      outgoing.style.animation = "none";
+      outgoing.className = "photo-frame";
+      outgoing.style.opacity = "0";
+
+      // Entrante: contenido nuevo, visible ya, sin transición ni animación.
+      var img1 = incoming.querySelector("img");
+      img1.src = step.src;
+      img1.alt = "";
+      incoming.style.transition = "none";
+      incoming.style.animation = "none";
+      incoming.style.transform = "none";
+      incoming.className = "photo-frame is-top";
+      incoming.style.opacity = "1";
+
+      void incoming.offsetWidth; // aplica todo lo anterior antes de soltar el bloqueo
+      incoming.style.transition = "";
+      outgoing.style.transition = "";
+
+      setBackgroundImage(step.src, true);
+    } else {
+      var img2 = incoming.querySelector("img");
+      img2.src = step.src;
+      img2.alt = "";
+      incoming.className = "photo-frame";
+      void incoming.offsetWidth; // reflow para reiniciar la animación
+      incoming.classList.add("is-top", step.transitionClass);
+      outgoing.classList.remove("is-top");
+
+      setBackgroundImage(step.src, false);
+    }
+
     frameTopIndex = 1 - frameTopIndex;
-
-    standbyBg.style.backgroundImage = 'url("' + step.src + '")';
-    standbyBg.className = "photo-bg";
-    void standbyBg.offsetWidth; // reflow para reiniciar la animación
-    standbyBg.classList.add("is-top", step.transitionClass);
-    currentBg.classList.remove("is-top");
-    bgTopIndex = 1 - bgTopIndex;
   }
 
   function renderStep(instant) {
@@ -318,11 +297,7 @@
       preloadUpcoming(stepIndex + 1, 2);
       scheduleAdvance(2600);
     } else if (step.type === "photo") {
-      if (instant) {
-        renderPhotoInstant(step);
-      } else {
-        renderPhotoAnimated(step);
-      }
+      renderPhoto(step, !!instant);
       screens.photo.querySelector('[data-role="counter-photo"]').textContent =
         step.globalPhotoNum + " / " + totalPhotos;
       activateScreen("photo");

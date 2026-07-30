@@ -288,20 +288,12 @@ html, body {
   background-position: center;
   filter: blur(18px) brightness(0.85);
   z-index: 0;
+  opacity: 1;
+  /* Pequeño fundido propio: cuando app.js cambia la imagen de fondo (con
+     retraso respecto a la foto principal), la baja a 0, cambia la
+     imagen, y la sube de nuevo — un parpadeo suave, no un corte seco. */
+  transition: opacity 220ms ease;
 }
-
-.photo-bg.is-top {
-  z-index: 1;
-}
-
-/* Reutiliza las mismas clases de transición que la foto principal
-   (t-fade, t-zoom-in...), para que el fondo cambie EN SINCRONÍA con la
-   foto en primer plano, en vez de aparecer de golpe antes de tiempo. */
-.photo-bg.is-top.t-fade      { animation: t-fade 1200ms var(--ease-cinema); }
-.photo-bg.is-top.t-zoom-in   { animation: t-zoom-in 5000ms var(--ease-cinema); }
-.photo-bg.is-top.t-zoom-soft { animation: t-zoom-soft 6000ms linear; }
-.photo-bg.is-top.t-pan-h     { animation: t-pan-h 5000ms var(--ease-cinema); }
-.photo-bg.is-top.t-pan-v     { animation: t-pan-v 5000ms var(--ease-cinema); }
 
 .photo-bg-overlay {
   position: absolute;
@@ -321,7 +313,8 @@ html, body {
   opacity: 0;
   /* Al quitar "is-top" (cuando entra la siguiente foto), esta transición
      de opacidad es lo que hace que la foto saliente se desvanezca en vez
-     de desaparecer de golpe — se superpone con la entrada de la nueva. */
+     de desaparecer de golpe — se superpone con la entrada de la nueva.
+     En cambios FORZADOS, app.js la desactiva momentáneamente. */
   transition: opacity 900ms var(--ease-cinema);
 }
 
@@ -340,7 +333,8 @@ html, body {
   display: block;
 }
 
-/* Variantes de transición de foto (aplicadas por app.js en la Parte 3) */
+/* Variantes de transición de foto — SOLO se usan en cambios automáticos;
+   en los forzados app.js nunca añade estas clases. */
 .photo-frame.t-fade      { animation: t-fade 1200ms var(--ease-cinema); }
 .photo-frame.t-zoom-in   { animation: t-zoom-in 5000ms var(--ease-cinema); }
 .photo-frame.t-zoom-soft { animation: t-zoom-soft 6000ms linear; }
